@@ -1,0 +1,126 @@
+import json
+import pandas as pd
+pd.set_option('display.max_columns', 100)
+pd.set_option('display.max_rows', 200)
+
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.model_selection import GridSearchCV
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.tree import export_graphviz
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import MinMaxScaler
+
+# Helper functions
+
+def initial_look(feature_name):
+    feature = modelling_df[feature_name]
+    print("number of NAs:", feature.isna().sum())
+    print(feature.describe())
+    print(feature.sample(10))
+    
+    if len(feature.unique()) < 42:
+        print(feature.value_counts())
+
+    print(feature[0])
+
+def one_hot_encode(df, feature_name, categories):
+    for category in categories:
+        new_feature_name = '{}_{}'.format(feature_name, category)
+        df[new_feature_name] = (df[feature_name] == category) * 1
+    del df[feature_name]
+    
+raw_df = pd.read_csv("data/kickstarter.csv")
+evaluation_df = raw_df[raw_df.evaluation_set == True]
+modelling_df = raw_df[raw_df.evaluation_set == False]
+
+features_for_model_0_1 = ['goal', 'country', 'deadline', 'created_at',
+                          'launched_at', 'static_usd_rate', 'category',
+                         'profile', 'state']
+reduced_df = modelling_df[features_for_model_0_1]
+
+
+
+numeric_df = reduced_df.copy()
+numeric_df['goal_in_usd'] = numeric_df['goal'] * numeric_df['static_usd_rate']
+del numeric_df['goal']
+del numeric_df['static_usd_rate']
+
+country_categories = numeric_df['country'].unique()
+one_hot_encode(numeric_df, 'country', country_categories)
+
+numeric_df['campaign_duration_ms'] = numeric_df['deadline'] - numeric_df['launched_at']
+numeric_df['campaign_prep_ms'] = numeric_df['launched_at'] - numeric_df['created_at']
+numeric_df['campaign_life_ms'] = numeric_df['deadline'] - numeric_df['created_at']
+
+#numeric_df['category_id'] = numeric_df['category']\
+#    .apply(lambda x: json.loads(x)['id'])
+#numeric_df['category_parent_id'] = numeric_df['category']\
+#    .apply(lambda x: json.loads(x)['parent_id'])
+
+numeric_df['parent_category'] = numeric_df['category']\
+    .apply(lambda x: json.loads(x)['slug'].split('/')[0])
+parent_categories = numeric_df['parent_category'].unique()
+one_hot_encode(numeric_df, 'parent_category', parent_categories)
+
+
+numeric_df['category_name'] = numeric_df['category']\
+    .apply(lambda x: json.loads(x)['slug'].split('/')[1])
+category_values = numeric_df['category_name'].unique()
+one_hot_encode(numeric_df, 'category_name', category_values)
+
+
+del numeric_df['category']
+
+numeric_df['profile_state'] = numeric_df['profile']\
+    .apply(lambda x: json.loads(x)['state'])
+numeric_df['profile_state_changed_at'] = numeric_df['profile']\
+    .apply(lambda x: json.loads(x)['state_changed_at'])
+del numeric_df['profile']
+numeric_df['profile_state'] = (numeric_df['profile_state'] == 'active') * 1
+
+numeric_df['tmp1'] = numeric_df['deadline'] - numeric_df['profile_state_changed_at']
+numeric_df['tmp2'] = numeric_df['launched_at'] - numeric_df['profile_state_changed_at']
+del numeric_df['profile_state_changed_at']
+
+del numeric_df['deadline']
+del numeric_df['created_at']
+del numeric_df['launched_at']
+
+scaler = MinMaxScaler()
+column_names = numeric_df.columns
+numeric_df = pd.DataFrame(scaler.fit_transform(numeric_df), columns=column_names)
+
+X = numeric_df.iloc[:,1:]
+y = numeric_df.iloc[:,0]
+
+params = {'max_depth': [3,5,7,9,11,13]}
+cv = GridSearchCV(estimator=DecisionTreeClassifier(),
+                  param_grid=params,
+                  cv=5)
+
+cv.fit(X, y)
+
+results = pd.DataFrame(cv.cv_results_)
+results = results.sort_values('rank_test_score')
+
+cv.best_estimator_.predict(X)
+
+importances = pd.DataFrame({
+    'feature': X.columns,
+    'importance': cv.best_estimator_.feature_importances_
+})
+
+
+
+from sklearn.linear_model import LogisticRegression
+params = {'C': [3, 3.5, 4]}
+cv = GridSearchCV(estimator=LogisticRegression(solver="liblinear", penalty="l1"),
+                  param_grid=params,
+                  cv=5 )
+
+cv.fit(X, y)
+
+results = pd.DataFrame(cv.cv_results_)
+results = results.sort_values('rank_test_score')
