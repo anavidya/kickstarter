@@ -123,4 +123,4 @@ cv_log = GridSearchCV(estimator=LogisticRegression(solver="liblinear", penalty="
 cv_log.fit(X, y)
 
 results_log = pd.DataFrame(cv_log.cv_results_)
-results_log = results.sort_values('rank_test_score')
+results_log_log = results_log.sort_values('rank_test_score')
