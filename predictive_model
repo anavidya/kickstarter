@@ -96,31 +96,31 @@ X = numeric_df.iloc[:,1:]
 y = numeric_df.iloc[:,0]
 
 params = {'max_depth': [3,5,7,9,11,13]}
-cv = GridSearchCV(estimator=DecisionTreeClassifier(),
+cv_dt = GridSearchCV(estimator=DecisionTreeClassifier(),
                   param_grid=params,
                   cv=5)
 
-cv.fit(X, y)
+cv_dt.fit(X, y)
 
-results = pd.DataFrame(cv.cv_results_)
+results = pd.DataFrame(cv_dt.cv_results_)
 results = results.sort_values('rank_test_score')
 
-cv.best_estimator_.predict(X)
+cv_dt.best_estimator_.predict(X)
 
 importances = pd.DataFrame({
     'feature': X.columns,
-    'importance': cv.best_estimator_.feature_importances_
+    'importance': cv_dt.best_estimator_.feature_importances_
 })
 
 
 
 from sklearn.linear_model import LogisticRegression
 params = {'C': [3, 3.5, 4]}
-cv = GridSearchCV(estimator=LogisticRegression(solver="liblinear", penalty="l1"),
+cv_log = GridSearchCV(estimator=LogisticRegression(solver="liblinear", penalty="l1"),
                   param_grid=params,
                   cv=5 )
 
-cv.fit(X, y)
+cv_log.fit(X, y)
 
-results = pd.DataFrame(cv.cv_results_)
-results = results.sort_values('rank_test_score')
+results_log = pd.DataFrame(cv_log.cv_results_)
+results_log = results.sort_values('rank_test_score')
